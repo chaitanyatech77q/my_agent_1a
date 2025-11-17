@@ -1,0 +1,155 @@
+# Day 1a - From Prompt to Action
+# 🚀 Your First AI Agent: From Prompt to Action
+
+
+# 1.2: Configure your Gemini API Key
+# This notebook uses the Gemini API, which requires authentication.
+
+# 1. Get your API key
+
+# If you don't have one already, create an API key in Google AI Studio.
+
+# 2. Add the key to Kaggle Secrets
+
+# Next, you will need to add your API key to your Kaggle Notebook as a Kaggle User Secret.
+
+# In the top menu bar of the notebook editor, select Add-ons then Secrets.
+# Create a new secret with the label GOOGLE_API_KEY.
+# Paste your API key into the "Value" field and click "Save".
+# Ensure that the checkbox next to GOOGLE_API_KEY is selected so that the secret is attached to the notebook.
+
+pip install google-adk
+
+
+import os
+from kaggle_secrets import UserSecretsClient
+
+try:
+    GOOGLE_API_KEY = UserSecretsClient().get_secret("GOOGLE_API_KEY")
+    os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
+    print("✅ Gemini API key setup complete.")
+except Exception as e:
+    print(
+        f"🔑 Authentication Error: Please make sure you have added 'GOOGLE_API_KEY' to your Kaggle secrets. Details: {e}"
+    )
+    
+from google.adk.agents import Agent
+from google.adk.models.google_llm import Gemini
+from google.adk.runners import InMemoryRunner
+from google.adk.tools import google_search
+from google.genai import types
+
+print("✅ ADK components imported successfully.")
+
+# Define helper functions that will be reused throughout the notebook
+
+from IPython.core.display import display, HTML
+from jupyter_server.serverapp import list_running_servers
+
+
+# Gets the proxied URL in the Kaggle Notebooks environment
+def get_adk_proxy_url():
+    PROXY_HOST = "https://kkb-production.jupyter-proxy.kaggle.net"
+    ADK_PORT = "8000"
+
+    servers = list(list_running_servers())
+    if not servers:
+        raise Exception("No running Jupyter servers found.")
+
+    baseURL = servers[0]["base_url"]
+
+    try:
+        path_parts = baseURL.split("/")
+        kernel = path_parts[2]
+        token = path_parts[3]
+    except IndexError:
+        raise Exception(f"Could not parse kernel/token from base URL: {baseURL}")
+
+    url_prefix = f"/k/{kernel}/{token}/proxy/proxy/{ADK_PORT}"
+    url = f"{PROXY_HOST}{url_prefix}"
+
+    styled_html = f"""
+    <div style="padding: 15px; border: 2px solid #f0ad4e; border-radius: 8px; background-color: #fef9f0; margin: 20px 0;">
+        <div style="font-family: sans-serif; margin-bottom: 12px; color: #333; font-size: 1.1em;">
+            <strong>⚠️ IMPORTANT: Action Required</strong>
+        </div>
+        <div style="font-family: sans-serif; margin-bottom: 15px; color: #333; line-height: 1.5;">
+            The ADK web UI is <strong>not running yet</strong>. You must start it in the next cell.
+            <ol style="margin-top: 10px; padding-left: 20px;">
+                <li style="margin-bottom: 5px;"><strong>Run the next cell</strong> (the one with <code>!adk web ...</code>) to start the ADK web UI.</li>
+                <li style="margin-bottom: 5px;">Wait for that cell to show it is "Running" (it will not "complete").</li>
+                <li>Once it's running, <strong>return to this button</strong> and click it to open the UI.</li>
+            </ol>
+            <em style="font-size: 0.9em; color: #555;">(If you click the button before running the next cell, you will get a 500 error.)</em>
+        </div>
+        <a href='{url}' target='_blank' style="
+            display: inline-block; background-color: #1a73e8; color: white; padding: 10px 20px;
+            text-decoration: none; border-radius: 25px; font-family: sans-serif; font-weight: 500;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: all 0.2s ease;">
+            Open ADK Web UI (after running cell below) ↗
+        </a>
+    </div>
+    """
+
+    display(HTML(styled_html))
+
+    return url_prefix
+
+
+print("✅ Helper functions defined.")
+
+
+
+retry_config=types.HttpRetryOptions(
+    attempts=5,  # Maximum retry attempts
+    exp_base=7,  # Delay multiplier
+    initial_delay=1, # Initial delay before first retry (in seconds)
+    http_status_codes=[429, 500, 503, 504] # Retry on these HTTP errors
+)
+
+
+root_agent = Agent(
+    name="helpful_assistant",
+    model=Gemini(
+        model="gemini-2.5-flash-lite",
+        retry_options=retry_config
+    ),
+    description="A simple agent that can answer general questions.",
+    instruction="You are a helpful assistant. Use Google Search for current info or if unsure.",
+    tools=[google_search],
+)
+
+print("✅ Root Agent defined.")
+
+
+
+runner = InMemoryRunner(agent=root_agent)
+
+print("✅ Runner created.")
+
+
+response = await runner.run_debug(
+    "What is Agent Development Kit from Google? What languages is the SDK available in?"
+)
+
+
+
+response = await runner.run_debug("What's the weather in London?")
+
+
+
+!adk create sample-agent --model gemini-2.5-flash-lite --api_key $GOOGLE_API_KEY
+
+
+
+url_prefix = get_adk_proxy_url()
+
+
+
+!adk web --url_prefix {url_prefix}
+
+
+
+
+
+
